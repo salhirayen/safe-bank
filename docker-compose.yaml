@@ -1,0 +1,140 @@
+services:
+  # --- Base de données PostgreSQL pour Customer Service ---
+  customer-db:
+    image: postgres:16
+    container_name: customer-db
+    environment:
+      POSTGRES_DB: customers_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"   # 5433 en dehors → évite le conflit avec ton PostgreSQL local sur 5432
+    volumes:
+      - customer-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d customers_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --- Microservice Customer ---
+  customer-service:
+    build: ./customer-service
+    container_name: customer-service
+    ports:
+      - "8081:8081"
+    environment:
+      DB_URL: jdbc:postgresql://customer-db:5432/customers_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      customer-db:
+        condition: service_healthy
+
+  # --- Base de données Account ---
+  account-db:
+    image: postgres:16
+    container_name: account-db
+    environment:
+      POSTGRES_DB: accounts_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"  # Port 5434 sur ta machine
+    volumes:
+      - account-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d accounts_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --- Microservice Account ---
+  account-service:
+    build: ./Account-service
+    container_name: account-service
+    ports:
+      - "8082:8082"
+    environment:
+      DB_URL: jdbc:postgresql://account-db:5432/accounts_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      account-db:
+        condition: service_healthy
+
+  # --- Base de données Transaction ---
+  transaction-db:
+    image: postgres:16
+    container_name: transaction-db
+    environment:
+      POSTGRES_DB: transactions_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"   # Port 5436 sur ta machine
+    volumes:
+      - transaction-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d transactions_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --- Microservice Transaction ---
+  transaction-service:
+    build: ./transaction-service
+    container_name: transaction-service
+    ports:
+      - "8083:8083"
+    environment:
+      DB_URL: jdbc:postgresql://transaction-db:5432/transactions_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      ACCOUNT_SERVICE_URL: http://account-service:8082
+      NOTIFICATION_SERVICE_URL: http://notification-service:8084
+    depends_on:
+      transaction-db:
+        condition: service_healthy
+      account-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+
+  # --- Base de données Notification ---
+  notification-db:
+    image: postgres:16
+    container_name: notification-db
+    environment:
+      POSTGRES_DB: notifications_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"   # Port 5435 sur ta machine
+    volumes:
+      - notification-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d notifications_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --- Microservice Notification ---
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    ports:
+      - "8084:8084"
+    environment:
+      DB_URL: jdbc:postgresql://notification-db:5432/notifications_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      notification-db:
+        condition: service_healthy
+
+volumes:
+  customer-data:
+  account-data:
+  transaction-data:
+  notification-data:

@@ -1,0 +1,17 @@
+# --- Étape 1 : build avec Maven ---
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+
+# On copie d'abord le pom.xml pour profiter du cache Docker
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# Puis le code source
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+# --- Étape 2 : image finale légère ---
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+ENTRYPOINT ["java","-jar","app.jar"]
